@@ -1,0 +1,85 @@
+#loginForm {
+    height: 900px;
+    width: 80%;
+    margin: 0 10%;
+}
+
+#header {
+    height: 20%;
+}
+
+#loginTable {
+    width: 400px;
+    height: 300px;
+    horiz-align: center;
+    margin-top: 20px;
+    margin-left: 500px;
+}
+
+#loginHeader {
+    text-align: center;
+    font-family: 微软雅黑;
+    font-size: 20px;
+    font-weight: normal;
+    padding-top: 10px;
+    color: purple;
+}
+
+#loginUser {
+    padding-top: 5px;
+}
+
+#userName {
+    font-size: 18px;
+    width: 98%;
+    height: 30px;
+}
+
+#password {
+    margin-top: 10px;
+    font-size: 18px;
+    width: 98%;
+    height: 30px;
+}
+
+#btn_ok {
+    margin-top: 10px;
+    text-align: center;
+}
+
+#loginBut {
+    height: 50px;
+    width: 95%;
+    font-family: 华文隶书;
+    font-size: 42px;
+    color: white;
+    text-align: justify-all;
+    background-color: #00c1de;
+    border-radius: 20px;
+}
+
+#box {
+    margin: 100px;
+    background-color: lightpink;
+    border: #7b7b7b solid 5px;
+    padding: 20px;
+    width: 100px;
+    height: 100px;
+    font-size: 48px;
+    color: white;
+    border-radius: 10px;
+    text-shadow: #e6e6e6;
+}
+
+body {
+    background-color: lightgrey;
+}
+
+#soundBox {
+    margin: 90px auto;
+    width: 286px;
+    height: 186px;
+    background-size: cover;
+}
+
+

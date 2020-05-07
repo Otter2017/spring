@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>登陆</title>
+    <link rel="stylesheet" href="index.css">
+    <script src="https://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js">
+    </script>
+    <script>
+        const CONTENT_JSON = "application/json; charset=utf-8";
+
+        function login() {
+            var userName = document.getElementById("userName").value;
+            var password = document.getElementById("password").value;
+            var postData = {"userName": userName, "password": password};
+            $.ajax({
+                url: "/user/login",
+                type: "post",
+                contentType: CONTENT_JSON,
+                data: JSON.stringify(postData),
+                success: function (data) {
+                    console.log(JSON.stringify(data));
+                    if (data) {
+                        window.alert("登陆成功");
+                    } else {
+                        window.alert("登陆失败");
+                    }
+                },
+                error: function (data, textStatus, errorThrown) {
+                    console.log(JSON.stringify(data));
+                    console.log(JSON.stringify(textStatus));
+                    console.log(JSON.stringify(errorThrown));
+                    window.alert("登陆失败" + data);
+                }
+            });
+        };
+
+        function play() {
+            console.log("开始播放");
+        }
+
+        function pause() {
+            console.log("暂停");
+        }
+    </script>
+</head>
+<body>
+<div id="loginForm">
+    <div id="header"></div>
+    <div id="loginTable">
+        <div id="loginHeader">
+            用户登陆
+        </div>
+        <div id="loginUser">
+            <div>
+                <input id="userName" placeholder="请输入用户名">
+            </div>
+        </div>
+        <div>
+            <input type="password" id="password" placeholder="请输入密码">
+        </div>
+        <div id="btn_ok">
+            <button id="loginBut" onclick="login()">登陆</button>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>vue</title>
+    <link rel="stylesheet" href="vue.css">
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<div id="app" style="padding: 5px">
+    <img :src="imageSrc">
+    <div>
+        <!-- 样式绑定 -->
+        <p :class="weekdayPanel" v-if="isSunday">今天是星期天</p>
+        <p :class="weekdayPanel" v-else="isSunday">今天不是星期天</p>
+        <br>
+    </div>
+    <p v-if="showList">用户列表，用户总数:{{userCount}}</p>
+    <ol>
+        <li v-for="user in userList" :style="{color:user.color}">
+            {{user.userName}} 今年 {{user.age}} 岁
+        </li>
+    </ol>
+
+    <br>
+    <button @click="deleteUser">删除第一个用户</button>
+    <button @click="popUser">删除最后一个用户</button>
+    <button @click="addUser">添加一个用户</button>
+
+    <br>
+    <input v-if="userList.length > 0" v-model="userList[0].userName" placeholder="输入用户名称">
+</div>
+
+<script type="application/javascript">
+    var vm = new Vue({
+        //vue实例关联到id = 'vueApp'的DOM元素
+        el: "#vueApp",
+        //定义了两个数据对象
+        data: {
+            userName: "",
+            isLogin: false
+        },
+        //当userName的值编号时，isLogin跟踪变化
+        watch: {
+            userName: function (value) {
+                this.isLogin = value === null || value === "";
+            }
+        },
+        //定义了一个根据userName计算属性isAdmin
+        computed: {
+            isAdmin: function () {
+                return this.userName === 'admin';
+            }
+        },
+        //定义了一个函数clearUser
+        methods: {
+            clearUser: function () {
+                this.username = null;
+                this.isLogin = false;
+            }
+        }
+    });
+
+    var vm = new Vue({
+        el: '#app',
+        data: {
+            //定义了数据对象
+            imageSrc: 'https://img.alicdn.com/tfs/TB1Ly5oS3HqK1RjSZFPXXcwapXa-238-54.png',
+            isSunday: false,
+            userCount: 5,
+            weekdayPanel: 'pink',
+            userList: [
+                {
+                    userName: '张三',
+                    age: 23,
+                    color: 'red'
+                },
+                {
+                    userName: '李四',
+                    age: 24,
+                    color: 'purple'
+                },
+                {
+                    userName: '王五',
+                    age: 25,
+                    color: 'blue'
+                },
+                {
+                    userName: '刘六',
+                    age: 26,
+                    color: 'gray'
+                },
+                {
+                    userName: '赵七',
+                    age: 27,
+                    color: 'orange'
+                }
+            ]
+        },
+        methods: {
+            //定义了一个方法
+            deleteUser: function () {
+                if (this.userList.length > 0) {
+                    this.userList.shift();
+                }
+            },
+            popUser: function () {
+                if (this.userList.length > 0) {
+                    this.userList.pop();
+                }
+            },
+            addUser: function () {
+                this.userList.push({
+                        userName: '新用户', age: 30, color: 'pink'
+                    }
+                )
+            }
+        },
+        watch: {
+            //定义了属性监视器，每次属性值变化时触发
+            userList: function (value) {
+                this.userCount = value.length;
+                console.log(this.userCount);
+                switch (this.userCount % 3) {
+                    case 0: {
+                        this.weekdayPanel = 'orange';
+                        return;
+                    }
+                    case 1: {
+                        this.weekdayPanel = 'green';
+                        return;
+                    }
+                    default: {
+                        this.weekdayPanel = 'pink';
+                    }
+                }
+            }
+        },
+        computed: {
+            //定义复合属性，不必在data显示定义，由现有属性计算而来
+            showList: function () {
+                return this.userList.length > 0;
+            }
+        }
+    })
+</script>
+</body>
+</html>
