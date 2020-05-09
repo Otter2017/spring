@@ -26,6 +26,7 @@ public class CommonAutoConfig {
         return new ApplicationVersion();
     }
 
+    //SPEL
     @Bean
     @ConditionalOnExpression("T(org.springframework.util.StringUtils).isEmpty('${animal.type:}')")
     Animal createCat() {
