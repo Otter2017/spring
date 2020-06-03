@@ -21,14 +21,15 @@ public class NIOTest {
         selector();
     }
 
-    public static void handleAccept(SelectionKey key) throws IOException {
+    private static void handleAccept(SelectionKey key) throws IOException {
         ServerSocketChannel ssChannel = (ServerSocketChannel) key.channel();
         SocketChannel sc = ssChannel.accept();
         sc.configureBlocking(false);
+        //注册读
         sc.register(key.selector(), SelectionKey.OP_READ, ByteBuffer.allocateDirect(BUF_SIZE));
     }
 
-    public static void handleRead(SelectionKey key) throws IOException {
+    private static void handleRead(SelectionKey key) throws IOException {
         SocketChannel sc = (SocketChannel) key.channel();
         ByteBuffer buf = (ByteBuffer) key.attachment();
         long bytesRead = sc.read(buf);
@@ -46,7 +47,7 @@ public class NIOTest {
         }
     }
 
-    public static void handleWrite(SelectionKey key) throws IOException {
+    private static void handleWrite(SelectionKey key) throws IOException {
         ByteBuffer buf = (ByteBuffer) key.attachment();
         buf.flip();
         SocketChannel sc = (SocketChannel) key.channel();
@@ -56,7 +57,7 @@ public class NIOTest {
         buf.compact();
     }
 
-    public static void selector() {
+    private static void selector() {
         Selector selector = null;
         ServerSocketChannel ssc = null;
         try {
@@ -66,12 +67,8 @@ public class NIOTest {
             ssc.configureBlocking(false);
             SelectionKey selectionKey = ssc.register(selector, SelectionKey.OP_ACCEPT);
             logger.info(selectionKey.toString());
-            logger.info(String.valueOf(selectionKey.isAcceptable()));
-            logger.info(String.valueOf(selectionKey.isReadable()));
-            logger.info(String.valueOf(selectionKey.isReadable()));
-            logger.info(String.valueOf(selectionKey.isWritable()));
             while (true) {
-                //每三秒检查一次是否有新连接
+                //每三秒检查一次是否有selector事件
                 if (selector.select(TIMEOUT) == 0) {
                     logger.info("not event ==");
                     continue;
