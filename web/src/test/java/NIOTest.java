@@ -14,7 +14,7 @@ import java.util.UUID;
 import java.util.concurrent.*;
 
 public class NIOTest {
-    static Logger logger = LoggerFactory.getLogger(NIOTest.class);
+    private static Logger logger = LoggerFactory.getLogger(NIOTest.class);
     private static final int BUF_SIZE = 1024;
 
     private static final int PORT = 8080;
@@ -30,10 +30,8 @@ public class NIOTest {
         serverService.submit(server);
 
         CountDownLatch countDownLatch = new CountDownLatch(5);
-        ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(6);
-        for (int i = 0; i < 10; i++) {
-            scheduledExecutorService.scheduleAtFixedRate(new Client(countDownLatch), 1, 5, TimeUnit.SECONDS);
-        }
+        ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+        scheduledExecutorService.scheduleAtFixedRate(new Client(countDownLatch), 2, 5, TimeUnit.SECONDS);
         try {
             countDownLatch.await();
             logger.info("exit");
@@ -63,7 +61,7 @@ public class NIOTest {
             }
         }
 
-        public Server() {
+        Server() {
             init();
         }
 
@@ -85,18 +83,9 @@ public class NIOTest {
         @Override
         public void run() {
             logger.info("server running...");
-            while (true) {
-                /**
-                 //每三秒检查一次是否有selector事件
-                 if (selector.select(TIMEOUT) == 0) {
-                 logger.info("not event ==");
-                 continue;
-                 }
-                 **/
-
-                //堵塞，直到有客户端连接
-                try {
-                    selector.select();
+            try {
+                while (selector.select() > 0) {
+                    //堵塞，直到有客户端连接
                     Iterator<SelectionKey> selectionKeys = selector.selectedKeys().iterator();
                     while (selectionKeys.hasNext()) {
                         SelectionKey key = selectionKeys.next();
@@ -109,9 +98,9 @@ public class NIOTest {
                         //处理完之后需主动移除
                         selectionKeys.remove();
                     }
-                } catch (Exception ex) {
-                    logger.info("selector error");
                 }
+            } catch (Exception ex) {
+                logger.info("selector error");
             }
         }
     }
@@ -123,7 +112,7 @@ public class NIOTest {
 
         private Selector selector;
 
-        public Client(CountDownLatch countDownLatch) {
+        Client(CountDownLatch countDownLatch) {
             init();
             this.countDownLatch = countDownLatch;
         }
@@ -154,11 +143,10 @@ public class NIOTest {
 
         @Override
         public void run() {
-            String threadName = Thread.currentThread().getName();
-            String uuid = UUID.randomUUID().toString();
-            String message = uuid + " from " + threadName;
-            sendMessage(message);
             try {
+                String uuid = UUID.randomUUID().toString();
+                String message = uuid + " from " + socketChannel.getLocalAddress();
+                sendMessage(message);
                 selector.select();
                 Iterator<SelectionKey> selectionKeys = selector.selectedKeys().iterator();
                 while (selectionKeys.hasNext()) {
@@ -191,9 +179,9 @@ public class NIOTest {
     }
 
     private static void handleAccept(SelectionKey key) throws IOException {
-        logger.info("accept");
         ServerSocketChannel ssChannel = (ServerSocketChannel) key.channel();
         SocketChannel sc = ssChannel.accept();
+        logger.info("accept connection from {}", sc.getRemoteAddress());
         sc.configureBlocking(false);
         //注册读
         sc.register(key.selector(), SelectionKey.OP_READ);
@@ -201,20 +189,18 @@ public class NIOTest {
 
     private static synchronized void handleRead(SelectionKey key, boolean ack) throws IOException {
         SocketChannel sc = (SocketChannel) key.channel();
-        logger.info("read {}", sc.getRemoteAddress().toString());
+        logger.info("read from {}", sc.getRemoteAddress().toString());
         ByteBuffer buf = ByteBuffer.allocateDirect(BUF_SIZE);
         if (sc.isConnected()) {
             int bytesRead = sc.read(buf);
-            logger.info("read bytes {}", bytesRead);
+            logger.info("bytes count {}", bytesRead);
             while (bytesRead > 0) {
-                System.out.println();
                 byte[] content = new byte[bytesRead];
                 buf.flip();
                 while (buf.hasRemaining()) {
                     buf.get(content);
-                    System.out.println(new String(content, StandardCharsets.UTF_8));
+                    logger.info("receive: {}", new String(content, StandardCharsets.UTF_8));
                 }
-                System.out.println();
                 buf.clear();
                 bytesRead = sc.read(buf);
             }
