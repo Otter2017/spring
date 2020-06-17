@@ -17,6 +17,17 @@ application:
 #      port: 27017
 #      database: user
 
-#logging:
-#  level:
-#    org.springframework: debug
+spring:
+  rabbitmq:
+    host: "192.168.191.198"
+    port: 5672
+    listener:
+      simple:
+        retry:
+          enabled: true
+        acknowledge-mode: manual
+        missing-queues-fatal: false
+
+    username: "root"
+    password: "password"
+    virtual-host: "vhos"

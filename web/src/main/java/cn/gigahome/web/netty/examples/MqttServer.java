@@ -1,21 +1,16 @@
 package cn.gigahome.web.netty.examples;
 
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import io.netty.handler.codec.mqtt.*;
 
-import java.nio.charset.StandardCharsets;
-
-public class NettyServer implements Runnable {
+public class MqttServer implements Runnable {
     private int port;
 
-    public NettyServer(int port) {
+    public MqttServer(int port) {
         this.port = port;
     }
 
@@ -41,12 +36,9 @@ public class NettyServer implements Runnable {
                         public void initChannel(SocketChannel ch) throws Exception {
                             //在这里加入处理读写的handler
                             ChannelPipeline pipeline = ch.pipeline();
-//                            pipeline.addLast(new StringDecoder());
-//                            pipeline.addLast(new StringEncoder());
-//                            pipeline.addLast(new StringEncoder(StandardCharsets.UTF_8));
-//                            pipeline.addLast(new StringDecoder(StandardCharsets.UTF_8));
-                            pipeline.addLast(new ServerHandler());
-//                            pipeline.addLast(new ByteArrayDecoder());
+                            pipeline.addLast(new MqttDecoder());
+                            pipeline.addLast(MqttEncoder.INSTANCE);
+                            pipeline.addLast(new MqttHandler());
                         }
                     });
             ChannelFuture f = b.bind(this.port).sync();
@@ -57,42 +49,22 @@ public class NettyServer implements Runnable {
         }
     }
 
-
-    private static class ServerHandler extends ChannelInboundHandlerAdapter {
-        /**
-         * 如果线程堵塞，会一次收到客户端多次发送的信息
-         * <p>
-         * 添加本地变量lastBuf，由于存放线程堵塞时，上一次连接剩余的字节数组
-         */
-        private ByteBuf lastBuf = null;
-
-        private static final int fixMessageLength = 36;
-
-        private Logger logger = LoggerFactory.getLogger(ServerHandler.class);
-
+    private static class MqttHandler extends ChannelInboundHandlerAdapter {
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
-            logger.info("服务端通道激活：" + ctx.channel().localAddress());
-            String ack = "服务端连接成功!";
-            ctx.writeAndFlush(Unpooled.wrappedBuffer(ack.getBytes(StandardCharsets.UTF_8))); // 必须有flush
+            super.channelActive(ctx);
         }
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-            // 接收到字节数组后,解码成字符串，返回编码成字节数组的确认信息
-            if (lastBuf == null) {
-                lastBuf = (ByteBuf) msg;
-            } else {
-                lastBuf = Unpooled.wrappedBuffer(lastBuf, (ByteBuf) msg);
-            }
-            // 每次固定读取一个消息长度的字节，剩余未读取的字节留到下次接收到客户端传输时读取
-            byte[] bytes = new byte[fixMessageLength];
-            while (lastBuf.readableBytes() > fixMessageLength) {
-                lastBuf.readBytes(bytes);
-                String receiveMessage = new String(bytes);
-                logger.info("服务端收到: " + receiveMessage);
-                ctx.writeAndFlush(Unpooled.wrappedBuffer(receiveMessage.getBytes(StandardCharsets.UTF_8)));
-            }
+            MqttMessage message = (MqttMessage) msg;
+            System.out.println(message.payload().toString());
+            MqttFixedHeader connackFixedHeader =
+                    new MqttFixedHeader(MqttMessageType.CONNACK, false, MqttQoS.AT_MOST_ONCE, false, 0);
+            MqttConnAckVariableHeader mqttConnAckVariableHeader =
+                    new MqttConnAckVariableHeader(MqttConnectReturnCode.CONNECTION_ACCEPTED, false);
+            MqttConnAckMessage connack = new MqttConnAckMessage(connackFixedHeader, mqttConnAckVariableHeader);
+            ctx.writeAndFlush(connack);
         }
     }
 
