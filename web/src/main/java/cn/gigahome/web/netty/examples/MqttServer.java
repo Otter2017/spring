@@ -9,6 +9,9 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.mqtt.*;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.util.ReferenceCountUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +40,9 @@ public class MqttServer implements Runnable {
         EventLoopGroup bossGroup = epollAvaiblable ? new EpollEventLoopGroup(1) : new NioEventLoopGroup(1);
         EventLoopGroup workerGroup = epollAvaiblable ? new EpollEventLoopGroup() : new NioEventLoopGroup();
         try {
+            SelfSignedCertificate ssc = new SelfSignedCertificate();
+            SslContext sslCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
+                    .build();
             ServerBootstrap b = new ServerBootstrap();
             b.group(bossGroup, workerGroup)
                     .channel(epollAvaiblable ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
@@ -46,6 +52,14 @@ public class MqttServer implements Runnable {
                         public void initChannel(SocketChannel ch) throws Exception {
                             //在这里加入处理读写的handler
                             ChannelPipeline pipeline = ch.pipeline();
+                            pipeline.addLast(sslCtx.newHandler(ch.alloc()));
+                            /* 客户端需要添加以下代码,才能保证ssl正确处理
+
+                            final SslContext sslCtx = SslContextBuilder.forClient()
+                                    .trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+                            pipeline.addLast(sslCtx.newHandler(ch.alloc(),HOST, PORT));
+
+                             */
                             pipeline.addLast(new MqttDecoder());
                             pipeline.addLast(MqttEncoder.INSTANCE);
                             pipeline.addLast(new MqttHandler());
