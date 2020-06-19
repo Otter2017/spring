@@ -2,12 +2,21 @@ package cn.gigahome.web.netty.examples;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
+import io.netty.channel.epoll.Epoll;
+import io.netty.channel.epoll.EpollEventLoopGroup;
+import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.mqtt.*;
+import io.netty.util.ReferenceCountUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.charset.StandardCharsets;
 
 public class MqttServer implements Runnable {
+
     private int port;
 
     public MqttServer(int port) {
@@ -24,12 +33,13 @@ public class MqttServer implements Runnable {
     }
 
     private void runNettyServer() throws Exception {
-        EventLoopGroup bossGroup = new NioEventLoopGroup(1);
-        EventLoopGroup workerGroup = new NioEventLoopGroup();
+        boolean epollAvaiblable = Epoll.isAvailable();
+        EventLoopGroup bossGroup = epollAvaiblable ? new EpollEventLoopGroup(1) : new NioEventLoopGroup(1);
+        EventLoopGroup workerGroup = epollAvaiblable ? new EpollEventLoopGroup() : new NioEventLoopGroup();
         try {
             ServerBootstrap b = new ServerBootstrap();
             b.group(bossGroup, workerGroup)
-                    .channel(NioServerSocketChannel.class)
+                    .channel(epollAvaiblable ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
                     .handler(new SimpleServerHandler())
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
@@ -50,6 +60,8 @@ public class MqttServer implements Runnable {
     }
 
     private static class MqttHandler extends ChannelInboundHandlerAdapter {
+        private Logger logger = LoggerFactory.getLogger(MqttServer.class);
+
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
             super.channelActive(ctx);
@@ -57,16 +69,59 @@ public class MqttServer implements Runnable {
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-            MqttMessage message = (MqttMessage) msg;
-            System.out.println(message.payload().toString());
+            MqttMessage mqttMessage = (MqttMessage) msg;
+            logger.info("Received MQTT message: " + mqttMessage);
+            switch (mqttMessage.fixedHeader().messageType()) {
+                case CONNECT:
+                    logger.info("client connect");
+                    MqttConnectMessage connectMessage = (MqttConnectMessage) mqttMessage;
+                    String clientID = connectMessage.payload().clientIdentifier();
+                    String userName = connectMessage.variableHeader().hasUserName() ? connectMessage.payload().userName() : null;
+                    String password = connectMessage.variableHeader().hasPassword() ? connectMessage.payload().password() : null;
+                    logger.info("connect from {}@{} - {}", userName, clientID, password);
+                    ctx.writeAndFlush(generateConnAckMessage());
+                    break;
+                case PINGREQ:
+                    logger.info("client ping");
+                    MqttFixedHeader pingreqFixedHeader = new MqttFixedHeader(MqttMessageType.PINGRESP, false,
+                            MqttQoS.AT_MOST_ONCE, false, 0);
+                    MqttMessage pingResp = new MqttMessage(pingreqFixedHeader);
+                    ctx.writeAndFlush(pingResp);
+                    break;
+                case PUBLISH:
+                    logger.info("client publish");
+                    MqttPublishMessage publishMessage = (MqttPublishMessage) mqttMessage;
+                    int packId = publishMessage.variableHeader().packetId();
+                    String topicName = publishMessage.variableHeader().topicName();
+                    String content = publishMessage.payload().toString(StandardCharsets.UTF_8);
+                    logger.info("message -> {}@{} - {}", packId, topicName, content);
+                    MqttFixedHeader pubAckFixedHeader = new MqttFixedHeader(MqttMessageType.PUBACK, false,
+                            MqttQoS.AT_MOST_ONCE, false, 0);
+                    MqttMessageIdVariableHeader idVariableHeader = MqttMessageIdVariableHeader.from(packId);
+                    MqttMessage pubAck = new MqttMessage(pubAckFixedHeader, idVariableHeader);
+                    ctx.writeAndFlush(pubAck);
+                    break;
+                case DISCONNECT:
+                    logger.info("client disconnect");
+                    ctx.close();
+                    break;
+                default:
+                    logger.info("Unexpected message type: " + mqttMessage.fixedHeader().messageType());
+                    ReferenceCountUtil.release(msg);
+                    ctx.close();
+            }
+        }
+
+        private MqttConnAckMessage generateConnAckMessage() {
             MqttFixedHeader connackFixedHeader =
                     new MqttFixedHeader(MqttMessageType.CONNACK, false, MqttQoS.AT_MOST_ONCE, false, 0);
             MqttConnAckVariableHeader mqttConnAckVariableHeader =
                     new MqttConnAckVariableHeader(MqttConnectReturnCode.CONNECTION_ACCEPTED, false);
-            MqttConnAckMessage connack = new MqttConnAckMessage(connackFixedHeader, mqttConnAckVariableHeader);
-            ctx.writeAndFlush(connack);
+            return new MqttConnAckMessage(connackFixedHeader, mqttConnAckVariableHeader);
         }
+
     }
+
 
     private static class SimpleServerHandler extends ChannelInboundHandlerAdapter {
         @Override
