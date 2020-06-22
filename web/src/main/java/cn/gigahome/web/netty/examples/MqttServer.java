@@ -16,7 +16,8 @@ import io.netty.util.ReferenceCountUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MqttServer implements Runnable {
 
@@ -41,6 +42,7 @@ public class MqttServer implements Runnable {
         EventLoopGroup workerGroup = epollAvaiblable ? new EpollEventLoopGroup() : new NioEventLoopGroup();
         try {
             SelfSignedCertificate ssc = new SelfSignedCertificate();
+            //todo 从文件读取key
             SslContext sslCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
                     .build();
             ServerBootstrap b = new ServerBootstrap();
@@ -77,6 +79,16 @@ public class MqttServer implements Runnable {
     private static class MqttHandler extends ChannelInboundHandlerAdapter {
         private Logger logger = LoggerFactory.getLogger(MqttServer.class);
 
+        private ExecutorService executorService;
+
+        private MessageProcessor messageProcessor;
+
+        public MqttHandler() {
+            executorService = Executors.newSingleThreadExecutor();
+            messageProcessor = new MessageProcessor();
+            executorService.submit(messageProcessor);
+        }
+
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
             super.channelActive(ctx);
@@ -85,7 +97,7 @@ public class MqttServer implements Runnable {
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             MqttMessage mqttMessage = (MqttMessage) msg;
-            logger.info("Received MQTT message: " + mqttMessage);
+            logger.info("Received MQTT message from [{}], message = {} ", ctx.channel().remoteAddress(), mqttMessage);
             switch (mqttMessage.fixedHeader().messageType()) {
                 case CONNECT:
                     logger.info("client connect");
@@ -93,6 +105,7 @@ public class MqttServer implements Runnable {
                     String clientID = connectMessage.payload().clientIdentifier();
                     String userName = connectMessage.variableHeader().hasUserName() ? connectMessage.payload().userName() : null;
                     String password = connectMessage.variableHeader().hasPassword() ? connectMessage.payload().password() : null;
+                    //todo 鉴权，记录登陆信息 clientid/userName
                     logger.info("connect from {}@{} - {}", userName, clientID, password);
                     ctx.writeAndFlush(generateConnAckMessage());
                     break;
@@ -105,13 +118,12 @@ public class MqttServer implements Runnable {
                     break;
                 case PUBLISH:
                     logger.info("client publish");
-                    MqttPublishMessage publishMessage = (MqttPublishMessage) mqttMessage;
                     int qos = mqttMessage.fixedHeader().qosLevel().value();
-                    int packId = publishMessage.variableHeader().packetId();
-                    String topicName = publishMessage.variableHeader().topicName();
-                    String content = publishMessage.payload().toString(StandardCharsets.UTF_8);
-                    logger.info("message -> {}@{} - {}", packId, topicName, content);
+                    //todo 判断是同步处理还是异步处理
+                    messageProcessor.addMessage(mqttMessage);
                     if (qos > 0) {
+                        MqttPublishMessage publishMessage = (MqttPublishMessage) mqttMessage;
+                        int packId = publishMessage.variableHeader().packetId();
                         MqttFixedHeader pubAckFixedHeader = new MqttFixedHeader(MqttMessageType.PUBACK, false,
                                 MqttQoS.AT_MOST_ONCE, false, 0);
                         MqttMessageIdVariableHeader idVariableHeader = MqttMessageIdVariableHeader.from(packId);
@@ -137,9 +149,7 @@ public class MqttServer implements Runnable {
                     new MqttConnAckVariableHeader(MqttConnectReturnCode.CONNECTION_ACCEPTED, false);
             return new MqttConnAckMessage(connackFixedHeader, mqttConnAckVariableHeader);
         }
-
     }
-
 
     private static class SimpleServerHandler extends ChannelInboundHandlerAdapter {
         @Override
