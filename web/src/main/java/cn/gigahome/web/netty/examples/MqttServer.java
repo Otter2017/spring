@@ -52,7 +52,7 @@ public class MqttServer implements Runnable {
                         public void initChannel(SocketChannel ch) throws Exception {
                             //在这里加入处理读写的handler
                             ChannelPipeline pipeline = ch.pipeline();
-                            pipeline.addLast(sslCtx.newHandler(ch.alloc()));
+//                            pipeline.addLast(sslCtx.newHandler(ch.alloc()));
                             /* 客户端需要添加以下代码,才能保证ssl正确处理
 
                             final SslContext sslCtx = SslContextBuilder.forClient()
@@ -60,7 +60,8 @@ public class MqttServer implements Runnable {
                             pipeline.addLast(sslCtx.newHandler(ch.alloc(),HOST, PORT));
 
                              */
-                            pipeline.addLast(new MqttDecoder());
+                            // 默认的消息最大长度为8K,超过会DecoderResult会有相应的错误信息，且不会转成对应的消息实例
+                            pipeline.addLast(new MqttDecoder(1024 * 16));
                             pipeline.addLast(MqttEncoder.INSTANCE);
                             pipeline.addLast(new MqttHandler());
                         }
@@ -105,15 +106,18 @@ public class MqttServer implements Runnable {
                 case PUBLISH:
                     logger.info("client publish");
                     MqttPublishMessage publishMessage = (MqttPublishMessage) mqttMessage;
+                    int qos = mqttMessage.fixedHeader().qosLevel().value();
                     int packId = publishMessage.variableHeader().packetId();
                     String topicName = publishMessage.variableHeader().topicName();
                     String content = publishMessage.payload().toString(StandardCharsets.UTF_8);
                     logger.info("message -> {}@{} - {}", packId, topicName, content);
-                    MqttFixedHeader pubAckFixedHeader = new MqttFixedHeader(MqttMessageType.PUBACK, false,
-                            MqttQoS.AT_MOST_ONCE, false, 0);
-                    MqttMessageIdVariableHeader idVariableHeader = MqttMessageIdVariableHeader.from(packId);
-                    MqttMessage pubAck = new MqttMessage(pubAckFixedHeader, idVariableHeader);
-                    ctx.writeAndFlush(pubAck);
+                    if (qos > 0) {
+                        MqttFixedHeader pubAckFixedHeader = new MqttFixedHeader(MqttMessageType.PUBACK, false,
+                                MqttQoS.AT_MOST_ONCE, false, 0);
+                        MqttMessageIdVariableHeader idVariableHeader = MqttMessageIdVariableHeader.from(packId);
+                        MqttMessage pubAck = new MqttMessage(pubAckFixedHeader, idVariableHeader);
+                        ctx.writeAndFlush(pubAck);
+                    }
                     break;
                 case DISCONNECT:
                     logger.info("client disconnect");
