@@ -4,6 +4,9 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
+import io.netty.channel.epoll.Epoll;
+import io.netty.channel.epoll.EpollEventLoopGroup;
+import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -59,12 +62,13 @@ public class NettyServer implements Runnable {
     }
 
     private void runNettyServer(MessageFormat messageFormat, SslContext sslContext) throws Exception {
-        EventLoopGroup bossGroup = new NioEventLoopGroup(1);
-        EventLoopGroup workerGroup = new NioEventLoopGroup();
+        boolean epollAvaiblable = Epoll.isAvailable();
+        EventLoopGroup bossGroup = epollAvaiblable ? new EpollEventLoopGroup(1) : new NioEventLoopGroup(1);
+        EventLoopGroup workerGroup = epollAvaiblable ? new EpollEventLoopGroup() : new NioEventLoopGroup();
         try {
             ServerBootstrap b = new ServerBootstrap();
             b.group(bossGroup, workerGroup)
-                    .channel(NioServerSocketChannel.class)
+                    .channel(epollAvaiblable ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
                     .handler(new SimpleServerHandler())
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
