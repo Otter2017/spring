@@ -42,7 +42,7 @@ public class NettyServer implements Runnable {
              * 3 string & SSL
              * 4 string & No SSL
              */
-            int type = 1;
+            int type = 3;
             SslContext sslCtx = null;
             MessageFormat messageFormat;
             if (type < 3) {

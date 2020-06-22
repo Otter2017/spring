@@ -54,7 +54,7 @@ public class NettyClient {
                         @Override
                         protected void initChannel(Channel ch) {
                             if (sslContext != null) {
-                                ch.pipeline().addLast(sslContext.newHandler(ch.alloc(), "192.168.43.196", 1884));
+                                ch.pipeline().addLast(sslContext.newHandler(ch.alloc(), "127.0.0.1", 1884));
                             }
                             if (NettyServer.MessageFormat.STRING == messageFormat) {
                                 ch.pipeline().addLast(new StringEncoder(StandardCharsets.UTF_8));
@@ -66,7 +66,7 @@ public class NettyClient {
                         }
                     });
 
-            Channel channel = bootstrap.connect("192.168.43.196", 1884).channel();
+            Channel channel = bootstrap.connect("127.0.0.1", 1884).channel();
             Random random = new Random();
             while (true) {
                 //将发送的信息编码成字节数组发送给服务端，isActive必需(SSL握手可能耗时比较长，会执行一到两次sleep)
