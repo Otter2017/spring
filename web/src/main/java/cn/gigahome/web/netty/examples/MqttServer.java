@@ -16,6 +16,8 @@ import io.netty.util.ReferenceCountUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -99,47 +101,94 @@ public class MqttServer implements Runnable {
             MqttMessage mqttMessage = (MqttMessage) msg;
             logger.info("Received MQTT message from [{}], message = {} ", ctx.channel().remoteAddress(), mqttMessage);
             switch (mqttMessage.fixedHeader().messageType()) {
-                case CONNECT:
-                    logger.info("client connect");
-                    MqttConnectMessage connectMessage = (MqttConnectMessage) mqttMessage;
-                    String clientID = connectMessage.payload().clientIdentifier();
-                    String userName = connectMessage.variableHeader().hasUserName() ? connectMessage.payload().userName() : null;
-                    String password = connectMessage.variableHeader().hasPassword() ? connectMessage.payload().password() : null;
-                    //todo 鉴权，记录登陆信息 clientid/userName
-                    logger.info("connect from {}@{} - {}", userName, clientID, password);
-                    ctx.writeAndFlush(generateConnAckMessage());
+                case CONNECT: {
+                    processConnectMessage(ctx, mqttMessage);
                     break;
-                case PINGREQ:
-                    logger.info("client ping");
-                    MqttFixedHeader pingreqFixedHeader = new MqttFixedHeader(MqttMessageType.PINGRESP, false,
-                            MqttQoS.AT_MOST_ONCE, false, 0);
-                    MqttMessage pingResp = new MqttMessage(pingreqFixedHeader);
-                    ctx.writeAndFlush(pingResp);
+                }
+                case PINGREQ: {
+                    processPingMessage(ctx);
                     break;
+                }
                 case PUBLISH:
-                    logger.info("client publish");
-                    int qos = mqttMessage.fixedHeader().qosLevel().value();
-                    //todo 判断是同步处理还是异步处理
-                    messageProcessor.addMessage(mqttMessage);
-                    if (qos > 0) {
-                        MqttPublishMessage publishMessage = (MqttPublishMessage) mqttMessage;
-                        int packId = publishMessage.variableHeader().packetId();
-                        MqttFixedHeader pubAckFixedHeader = new MqttFixedHeader(MqttMessageType.PUBACK, false,
-                                MqttQoS.AT_MOST_ONCE, false, 0);
-                        MqttMessageIdVariableHeader idVariableHeader = MqttMessageIdVariableHeader.from(packId);
-                        MqttMessage pubAck = new MqttMessage(pubAckFixedHeader, idVariableHeader);
-                        ctx.writeAndFlush(pubAck);
-                    }
+                    processPublishMessage(ctx, mqttMessage);
                     break;
                 case DISCONNECT:
                     logger.info("client disconnect");
                     ctx.close();
                     break;
+                case SUBSCRIBE: {
+                    processSubMessage(ctx, mqttMessage);
+                    break;
+                }
+                case UNSUBSCRIBE: {
+                    processUnSubMessage(ctx, mqttMessage);
+                    break;
+                }
                 default:
                     logger.info("Unexpected message type: " + mqttMessage.fixedHeader().messageType());
                     ReferenceCountUtil.release(msg);
                     ctx.close();
             }
+        }
+
+        private void processConnectMessage(ChannelHandlerContext ctx, MqttMessage message) {
+            logger.info("client connect");
+            MqttConnectMessage connectMessage = (MqttConnectMessage) message;
+            String clientID = connectMessage.payload().clientIdentifier();
+            String userName = connectMessage.variableHeader().hasUserName() ? connectMessage.payload().userName() : null;
+            String password = connectMessage.variableHeader().hasPassword() ? connectMessage.payload().password() : null;
+            //todo 鉴权，记录登陆信息 clientid/userName
+            logger.info("connect from {}@{} - {}", userName, clientID, password);
+            ctx.writeAndFlush(generateConnAckMessage());
+        }
+
+        private void processPingMessage(ChannelHandlerContext ctx) {
+            logger.info("client ping");
+            MqttFixedHeader pingreqFixedHeader = new MqttFixedHeader(MqttMessageType.PINGRESP, false,
+                    MqttQoS.AT_MOST_ONCE, false, 0);
+            MqttMessage pingResp = new MqttMessage(pingreqFixedHeader);
+            ctx.writeAndFlush(pingResp);
+        }
+
+        private void processPublishMessage(ChannelHandlerContext ctx, MqttMessage message) {
+            logger.info("client publish");
+            int qos = message.fixedHeader().qosLevel().value();
+            //todo 判断是同步处理还是异步处理
+            messageProcessor.addMessage(message);
+            if (qos > 0) {
+                MqttPublishMessage publishMessage = (MqttPublishMessage) message;
+                int packId = publishMessage.variableHeader().packetId();
+                MqttFixedHeader pubAckFixedHeader = new MqttFixedHeader(MqttMessageType.PUBACK, false,
+                        MqttQoS.AT_MOST_ONCE, false, 0);
+                MqttMessageIdVariableHeader idVariableHeader = MqttMessageIdVariableHeader.from(packId);
+                MqttMessage pubAck = new MqttMessage(pubAckFixedHeader, idVariableHeader);
+                ctx.writeAndFlush(pubAck);
+            }
+        }
+
+        private void processSubMessage(ChannelHandlerContext ctx, MqttMessage message) {
+            MqttSubscribeMessage subscribeMessage = (MqttSubscribeMessage) message;
+            int messageId = subscribeMessage.variableHeader().messageId();
+            int topicCount = subscribeMessage.payload().topicSubscriptions().size();
+            MqttFixedHeader subAckFixedHeader = new MqttFixedHeader(MqttMessageType.SUBACK, false, MqttQoS.AT_LEAST_ONCE, false, 0);
+            MqttMessageIdVariableHeader idVariableHeader = MqttMessageIdVariableHeader.from(messageId);
+            List<Integer> qos = new ArrayList<>(topicCount);
+            for (int i = 0; i < topicCount; i++) {
+                qos.add(1);
+            }
+            MqttSubAckPayload subAckPayload = new MqttSubAckPayload(qos);
+            MqttSubAckMessage subAckMessage = new MqttSubAckMessage(subAckFixedHeader, idVariableHeader, subAckPayload);
+            ctx.writeAndFlush(subAckMessage);
+        }
+
+        private void processUnSubMessage(ChannelHandlerContext ctx, MqttMessage message) {
+            MqttUnsubscribeMessage mqttUnsubscribeMessage = (MqttUnsubscribeMessage) message;
+            int messageId = mqttUnsubscribeMessage.variableHeader().messageId();
+            MqttFixedHeader unsubackFixedHeader =
+                    new MqttFixedHeader(MqttMessageType.UNSUBACK, false, MqttQoS.AT_LEAST_ONCE, false, 0);
+            MqttMessageIdVariableHeader idVariableHeader = MqttMessageIdVariableHeader.from(messageId);
+            MqttUnsubAckMessage mqttUnsubAckMessage = new MqttUnsubAckMessage(unsubackFixedHeader, idVariableHeader);
+            ctx.writeAndFlush(mqttUnsubAckMessage);
         }
 
         private MqttConnAckMessage generateConnAckMessage() {
