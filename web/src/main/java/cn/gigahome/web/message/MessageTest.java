@@ -7,6 +7,7 @@ import org.apache.tomcat.util.buf.HexUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class MessageTest {
@@ -14,7 +15,8 @@ public class MessageTest {
         ObjectModel model = createModel();
         Message message = createMessage();
         ByteBuf buf = encodeMessage(message, model);
-        System.out.println(HexUtils.toHexString(buf.array()));
+        if (buf.readableBytes() > 0)
+            System.out.println(HexUtils.toHexString(Arrays.copyOfRange(buf.array(), 0, buf.readableBytes())));
     }
 
     private static ByteBuf encodeMessage(Message message, ObjectModel model) {
