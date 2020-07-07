@@ -4,7 +4,8 @@ public enum PropertyIdentifier {
     NULL(null, null),
     VERSION(DataType.UNSIGNED_BYTE, null),
     TIMESTAMP(DataType.LONG, null),
-    METHOD_NAME(DataType.STRING, LengthType.UNSIGNED_BYTE);
+    METHOD_NAME(DataType.STRING, LengthType.UNSIGNED_BYTE),
+    METHOD_IDENTIFIER(DataType.UNSIGNED_BYTE, null);
 
     private DataType dateType;
 
