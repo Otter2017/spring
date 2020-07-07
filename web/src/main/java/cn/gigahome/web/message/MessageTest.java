@@ -179,11 +179,11 @@ public class MessageTest {
 
         MessageArgument<String> location = new MessageArgument<>();
         location.setIdentifier((short) 7);
-        location.setValue("中心公园");
+        location.setValue("中心公园跑步区第二圈");
 
-        MessageArgument<Short> speed = new MessageArgument<>();
+        MessageArgument<Byte> speed = new MessageArgument<>();
         speed.setIdentifier((short) 8);
-        speed.setValue((short) 6);
+        speed.setValue((byte) 6);
 
         List<MessageArgument> args = new ArrayList<>();
         args.add(location);
@@ -270,7 +270,7 @@ public class MessageTest {
         speed.setDescription("速度");
         speed.setUnit("m/s");
         speed.setUnitName("米/秒");
-        speed.setDataType(DataType.SHORT);
+        speed.setDataType(DataType.UNSIGNED_BYTE);
 
         List<Parameter> runArgs = new ArrayList<>();
         runArgs.add(location);
