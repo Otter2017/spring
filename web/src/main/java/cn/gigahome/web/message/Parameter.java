@@ -13,6 +13,8 @@ public class Parameter {
 
     private DataType dataType;
 
+    private LengthType lengthType;
+
     public int getIdentifier() {
         return identifier;
     }
@@ -59,5 +61,13 @@ public class Parameter {
 
     public void setDataType(DataType dataType) {
         this.dataType = dataType;
+    }
+
+    public LengthType getLengthType() {
+        return lengthType;
+    }
+
+    public void setLengthType(LengthType lengthType) {
+        this.lengthType = lengthType;
     }
 }
