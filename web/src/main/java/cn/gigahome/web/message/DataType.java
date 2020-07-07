@@ -10,6 +10,7 @@ public enum DataType {
     LONG("长整型", 8),
     FLOAT("浮点型", 4),
     DOUBLE("双精度浮点型", 8),
+    //每一个中文占3个字节
     STRING("字符串", 2);
 
     private String name;
