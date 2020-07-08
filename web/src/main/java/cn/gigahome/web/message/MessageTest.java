@@ -11,14 +11,23 @@ import java.util.Arrays;
 import java.util.List;
 
 public class MessageTest {
+    private static final String LENGTH_TOO_BIG = "字符串长度过长:";
+    private static final String UNSUPPORTED_LENGTH_TYPE = "未支持的长度类型:";
+    private static final String UNSUPPORTED_DATA_TYPE = "未支持的数据类型:";
+
     public static void main(String[] args) {
         ObjectModel model = createModel();
         Message message = createMessage();
         // Encode message
         ByteBuf buf = encodeMessage(message, model);
-        System.out.println(JSON.toJSONString(message));
-        if (buf.readableBytes() > 0)
-            System.out.println(HexUtils.toHexString(Arrays.copyOfRange(buf.array(), 0, buf.readableBytes())));
+        String messageJSon = JSON.toJSONString(message);
+        System.out.println(messageJSon.getBytes(StandardCharsets.UTF_8).length);
+        System.out.println(messageJSon);
+        if (buf.readableBytes() > 0) {
+            String hexString = HexUtils.toHexString(Arrays.copyOfRange(buf.array(), 0, buf.readableBytes()));
+            System.out.println(hexString);
+            System.out.println(hexString.length() / 2);
+        }
 
         // Decode message
         ByteBuf buffer = buf.copy();
@@ -117,7 +126,7 @@ public class MessageTest {
                 return decodeString(buf, lengthType);
             }
             default: {
-                throw new IllegalArgumentException("未支持的数据类型：" + dataType);
+                throw new IllegalArgumentException(UNSUPPORTED_DATA_TYPE + dataType);
             }
         }
     }
@@ -138,7 +147,7 @@ public class MessageTest {
                 break;
             }
             default: {
-                throw new IllegalArgumentException("未支持的长度类型：" + lengthType);
+                throw new IllegalArgumentException(UNSUPPORTED_LENGTH_TYPE + lengthType);
             }
         }
         byte[] contentBytes = new byte[contentLength];
@@ -201,7 +210,7 @@ public class MessageTest {
                 break;
             }
             default: {
-                throw new IllegalArgumentException("未支持的数据类型：" + dataType);
+                throw new IllegalArgumentException(UNSUPPORTED_DATA_TYPE + dataType);
             }
         }
     }
@@ -216,27 +225,27 @@ public class MessageTest {
         switch (lengthType) {
             case UNSIGNED_BYTE: {
                 if (contentLength > 255) {
-                    throw new RuntimeException("字符串长度超过最大限制");
+                    throw new RuntimeException(LENGTH_TOO_BIG + contentLength);
                 }
                 buf.writeByte(contentLength & 0xff);
                 break;
             }
             case DOUBLE_BYTE: {
                 if (contentLength > 65535) {
-                    throw new RuntimeException("字符串长度超过最大限制");
+                    throw new RuntimeException(LENGTH_TOO_BIG + contentLength);
                 }
                 buf.writeShort(contentLength & 0xffff);
                 break;
             }
             case VARIANT_BYTE: {
                 if (contentLength > 268435455) {
-                    throw new RuntimeException("字符串长度超过最大限制");
+                    throw new RuntimeException(LENGTH_TOO_BIG);
                 }
                 writeVariableLengthInt(buf, contentLength);
                 break;
             }
             default: {
-                throw new IllegalArgumentException("未支持的长度类型：" + lengthType);
+                throw new IllegalArgumentException(UNSUPPORTED_LENGTH_TYPE + lengthType);
             }
         }
         if (contentBytes != null)
@@ -296,7 +305,7 @@ public class MessageTest {
 
         MessageArgument<String> location = new MessageArgument<>();
         location.setIdentifier((short) 7);
-        location.setValue("中心公园跑步区第二圈");
+        location.setValue("深圳市南山区嘉璐路245号");
 
         MessageArgument<Byte> speed = new MessageArgument<>();
         speed.setIdentifier((short) 8);
@@ -305,7 +314,6 @@ public class MessageTest {
         List<MessageArgument> args = new ArrayList<>();
         args.add(location);
         args.add(speed);
-
         message.setArgs(args);
         return message;
     }

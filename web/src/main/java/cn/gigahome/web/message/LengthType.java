@@ -3,6 +3,7 @@ package cn.gigahome.web.message;
 public enum LengthType {
     /**
      * 无符号整型，最大值255
+     * 最多85个汉字
      */
     UNSIGNED_BYTE,
     /**
