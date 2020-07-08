@@ -14,9 +14,16 @@ public class MessageTest {
     public static void main(String[] args) {
         ObjectModel model = createModel();
         Message message = createMessage();
+        // Encode message
         ByteBuf buf = encodeMessage(message, model);
+        System.out.println(JSON.toJSONString(message));
         if (buf.readableBytes() > 0)
             System.out.println(HexUtils.toHexString(Arrays.copyOfRange(buf.array(), 0, buf.readableBytes())));
+
+        // Decode message
+        ByteBuf buffer = buf.copy();
+        Message decodedMessage = decodeMessage(buffer, model);
+        System.out.println(JSON.toJSONString(decodedMessage));
     }
 
     private static ByteBuf encodeMessage(Message message, ObjectModel model) {
@@ -35,7 +42,7 @@ public class MessageTest {
             byteBuf.writeByte(messageArgument.getIdentifier());
             Parameter argument = getInputArgument(method, argIdentifier);
             if (argument == null) {
-                throw new IllegalArgumentException("未找到指定的参数");
+                throw new IllegalArgumentException("未找到指定的参数:" + argIdentifier);
             }
             DataType dataType = argument.getDataType();
             Object data = messageArgument.getValue();
@@ -43,6 +50,114 @@ public class MessageTest {
             encodeData(byteBuf, data, dataType, lengthType);
         }
         return byteBuf;
+    }
+
+    private static Message decodeMessage(ByteBuf buf, ObjectModel model) {
+        if (buf == null || buf.readableBytes() < 4) {
+            throw new IllegalArgumentException("消息格式不符合规范");
+        }
+        short version = buf.readUnsignedByte();
+        long timestamp = buf.readLong();
+        short methodIdentifier = buf.readUnsignedByte();
+        ObjectMethod method = getMethod(model, methodIdentifier);
+        if (method == null) {
+            throw new IllegalArgumentException("未找到指定的方法");
+        }
+        Message message = new Message();
+        message.setVersion(version);
+        message.setTimestamp(timestamp);
+        message.setMethodIdentifier(methodIdentifier);
+        List<MessageArgument> messageArguments = new ArrayList<>();
+        while (buf.readableBytes() > 0) {
+            short argumentIdentifier = buf.readUnsignedByte();
+            Parameter argument = getInputArgument(method, argumentIdentifier);
+            if (argument == null) {
+                throw new IllegalArgumentException("未找到指定的参数:" + argumentIdentifier);
+            }
+            DataType dataType = argument.getDataType();
+            LengthType lengthType = argument.getLengthType();
+            Object argumentValue = decodeArgumentValue(buf, dataType, lengthType);
+            MessageArgument messageArgument = new MessageArgument();
+            messageArgument.setIdentifier(argumentIdentifier);
+            messageArgument.setValue(argumentValue);
+            messageArguments.add(messageArgument);
+        }
+        message.setArgs(messageArguments);
+        return message;
+    }
+
+    private static Object decodeArgumentValue(ByteBuf buf, DataType dataType, LengthType lengthType) {
+        switch (dataType) {
+            case UNSIGNED_BYTE:
+            case ENUM: {
+                return buf.readUnsignedByte();
+            }
+            case BYTE: {
+                return buf.readByte();
+            }
+            case BOOLEAN: {
+                return buf.readBoolean();
+            }
+            case DOUBLE: {
+                return buf.readDouble();
+            }
+            case FLOAT: {
+                return buf.readFloat();
+            }
+            case SHORT: {
+                return buf.readShort();
+            }
+            case LONG: {
+                return buf.readLong();
+            }
+            case INTEGER: {
+                return buf.readInt();
+            }
+            case STRING: {
+                return decodeString(buf, lengthType);
+            }
+            default: {
+                throw new IllegalArgumentException("未支持的数据类型：" + dataType);
+            }
+        }
+    }
+
+    private static String decodeString(ByteBuf buf, LengthType lengthType) {
+        int contentLength;
+        switch (lengthType) {
+            case UNSIGNED_BYTE: {
+                contentLength = buf.readUnsignedByte();
+                break;
+            }
+            case DOUBLE_BYTE: {
+                contentLength = buf.readUnsignedShort();
+                break;
+            }
+            case VARIANT_BYTE: {
+                contentLength = readVariantLength(buf);
+                break;
+            }
+            default: {
+                throw new IllegalArgumentException("未支持的长度类型：" + lengthType);
+            }
+        }
+        byte[] contentBytes = new byte[contentLength];
+        buf.readBytes(contentBytes);
+        return new String(contentBytes, StandardCharsets.UTF_8);
+    }
+
+    private static int readVariantLength(ByteBuf buf) {
+        int remainingLength = 0;
+        int multiplier = 1;
+        short digit;
+        int loops = 0;
+        do {
+            digit = buf.readUnsignedByte();
+            remainingLength += (digit & 127) * multiplier;
+            multiplier *= 128;
+            loops++;
+        } while ((digit & 128) != 0 && loops < 4);
+        return remainingLength;
     }
 
     private static void encodeData(ByteBuf buf, Object data, DataType dataType, LengthType lengthType) {
@@ -103,14 +218,14 @@ public class MessageTest {
                 if (contentLength > 255) {
                     throw new RuntimeException("字符串长度超过最大限制");
                 }
-                buf.writeByte((byte) contentLength);
+                buf.writeByte(contentLength & 0xff);
                 break;
             }
             case DOUBLE_BYTE: {
                 if (contentLength > 65535) {
                     throw new RuntimeException("字符串长度超过最大限制");
                 }
-                buf.writeShort(contentLength);
+                buf.writeShort(contentLength & 0xffff);
                 break;
             }
             case VARIANT_BYTE: {
