@@ -52,4 +52,23 @@ public class ObjectModel {
     public void setEvents(List<ObjectMethod> events) {
         this.events = events;
     }
+
+
+    public ObjectMethod getMethod(short methodIdentifier) {
+        if (services != null) {
+            for (ObjectMethod method : services) {
+                if (methodIdentifier == method.getMethodIdentifier()) {
+                    return method;
+                }
+            }
+        }
+        if (events != null) {
+            for (ObjectMethod method : events) {
+                if (methodIdentifier == method.getMethodIdentifier()) {
+                    return method;
+                }
+            }
+        }
+        return null;
+    }
 }

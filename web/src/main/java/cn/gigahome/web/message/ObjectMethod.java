@@ -62,4 +62,15 @@ public class ObjectMethod {
     public void setOutputArguments(List<Parameter> outputArguments) {
         this.outputArguments = outputArguments;
     }
+
+    public Parameter getInputArgument(short argIdentifier) {
+        if (inputArguments != null) {
+            for (Parameter parameter : inputArguments) {
+                if (argIdentifier == parameter.getIdentifier()) {
+                    return parameter;
+                }
+            }
+        }
+        return null;
+    }
 }
